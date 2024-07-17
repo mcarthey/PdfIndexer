@@ -59,11 +59,15 @@ class Program
                 foreach (var hit in searchResults.Hits)
                 {
                     var lines = hit.Source.Content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                    var matchingLines = lines.Where(line => line.ToLowerInvariant().Contains(query));
-                    foreach (var line in matchingLines)
+                    var matchingLines = lines.Where(line => line.ToLowerInvariant().Contains(query)).ToList();
+
+                    if (matchingLines.Any())
                     {
                         Console.WriteLine($"FileName: {hit.Source.FileName}");
-                        Console.WriteLine($"Text: {line}");
+                        foreach (var line in matchingLines)
+                        {
+                            Console.WriteLine($"    Text: {line}");
+                        }
                         Console.WriteLine();
                     }
                 }
