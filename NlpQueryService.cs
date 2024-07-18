@@ -8,6 +8,7 @@ public class NlpQueryService
 {
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
+    private const int MaxRetries = 5;
 
     public NlpQueryService(string apiKey)
     {
@@ -19,8 +20,12 @@ public class NlpQueryService
     {
         var requestBody = new
         {
-            model = "text-davinci-003",  // Specify the model you want to use
-            prompt = prompt,
+            model = "gpt-4",  // Use the latest chat model
+            messages = new[]
+            {
+                new { role = "system", content = "You are a helpful assistant." },
+                new { role = "user", content = prompt }
+            },
             max_tokens = 150
         };
 
@@ -28,10 +33,23 @@ public class NlpQueryService
         _httpClient.DefaultRequestHeaders.Clear();
         _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
 
-        var response = await _httpClient.PostAsync("https://api.openai.com/v1/completions", requestContent);
-        response.EnsureSuccessStatusCode();
-        var responseString = await response.Content.ReadAsStringAsync();
-        var responseObject = JObject.Parse(responseString);
-        return responseObject["choices"][0]["text"].ToString().Trim();
+        for (int attempt = 0; attempt < MaxRetries; attempt++)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsync("https://api.openai.com/v1/chat/completions", requestContent);
+                response.EnsureSuccessStatusCode();
+                var responseString = await response.Content.ReadAsStringAsync();
+                var responseObject = JObject.Parse(responseString);
+                return responseObject["choices"][0]["message"]["content"].ToString().Trim();
+            }
+            catch (HttpRequestException ex) when ((int)ex.StatusCode == 429)
+            {
+                Console.WriteLine($"Rate limit exceeded, retrying in {Math.Pow(2, attempt)} seconds...");
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+            }
+        }
+
+        throw new Exception("Exceeded maximum retry attempts due to rate limiting.");
     }
 }
